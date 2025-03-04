@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Splitter</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f8f9fa;
+        }
+        .container {
+            background-color: white;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        .description {
+            color: #555555;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            font-weight: bold;
+            display: block;
+            margin-bottom: 5px;
+        }
+        .file-input-container {
+            border: 1px solid #ddd;
+            padding: 10px;
+            background-color: #f0f0f0;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+        }
+        .file-name {
+            flex-grow: 1;
+            padding: 5px;
+            color: #555555;
+        }
+        .btn {
+            padding: 8px 15px;
+            background-color: #e0e0e0;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .btn-primary {
+            background-color: #4CAF50;
+            color: white;
+            font-weight: bold;
+            padding: 12px 30px;
+            font-size: 16px;
+            margin: 20px auto;
+            display: block;
+        }
+        .btn:hover {
+            opacity: 0.9;
+        }
+        .status {
+            border: 1px solid #ddd;
+            padding: 8px;
+            margin-top: 20px;
+            background-color: #f8f8f8;
+        }
+        .results {
+            margin-top: 30px;
+            display: none;
+        }
+        .results h3 {
+            margin-bottom: 15px;
+            color: #2c3e50;
+        }
+        .file-list {
+            list-style: none;
+            padding: 0;
+        }
+        .file-list li {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .file-list li:last-child {
+            border-bottom: none;
+        }
+        .download-btn {
+            background-color: #3498db;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            text-decoration: none;
+            font-size: 12px;
+        }
+        .download-all {
+            background-color: #3498db;
+            color: white;
+            padding: 8px 15px;
+            border-radius: 4px;
+            text-decoration: none;
+            display: inline-block;
+            margin-top: 15px;
+        }
+        .error {
+            color: #e74c3c;
+            padding: 10px;
+            background-color: #fadbd8;
+            border-radius: 4px;
+            margin-top: 10px;
+            display: none;
+        }
+        .loading {
+            text-align: center;
+            display: none;
+            margin: 20px 0;
+        }
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 2s linear infinite;
+            margin: 0 auto 10px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>PDF Splitter</h1>
+        <p class="description">Split a multi-page PDF into individual single-page PDFs</p>
+        
+        <form id="upload-form" enctype="multipart/form-data">
+            <div class="form-group">
+                <label for="pdf-file">Input PDF:</label>
+                <div class="file-input-container">
+                    <div id="file-name" class="file-name">No file selected</div>
+                    <button type="button" id="browse-btn" class="btn">Browse</button>
+                    <input type="file" id="pdf-file" name="file" accept=".pdf" style="display: none;">
+                </div>
+            </div>
+            
+            <button type="submit" id="split-btn" class="btn btn-primary" disabled>Split PDF</button>
+        </form>
+        
+        <div id="error-message" class="error"></div>
+        
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <p>Processing PDF...</p>
+        </div>
+        
+        <div id="status" class="status">Ready</div>
+        
+        <div id="results" class="results">
+            <h3>Split PDF Files</h3>
+            <ul id="file-list" class="file-list"></ul>
+            <a href="#" id="download-all" class="download-all">Download All Files (ZIP)</a>
+        </div>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const form = document.getElementById('upload-form');
+            const fileInput = document.getElementById('pdf-file');
+            const browseBtn = document.getElementById('browse-btn');
+            const fileNameDisplay = document.getElementById('file-name');
+            const splitBtn = document.getElementById('split-btn');
+            const statusDisplay = document.getElementById('status');
+            const errorMessage = document.getElementById('error-message');
+            const loadingIndicator = document.getElementById('loading');
+            const resultsSection = document.getElementById('results');
+            const fileList = document.getElementById('file-list');
+            const downloadAllBtn = document.getElementById('download-all');
+            
+            let currentDirectory = null;
+            
+            // Browse button click handler
+            browseBtn.addEventListener('click', function() {
+                fileInput.click();
+            });
+            
+            // File selection handler
+            fileInput.addEventListener('change', function() {
+                if (fileInput.files.length > 0) {
+                    const fileName = fileInput.files[0].name;
+                    fileNameDisplay.textContent = fileName;
+                    splitBtn.disabled = false;
+                    
+                    // Reset UI
+                    errorMessage.style.display = 'none';
+                    resultsSection.style.display = 'none';
+                    statusDisplay.textContent = 'Ready';
+                } else {
+                    fileNameDisplay.textContent = 'No file selected';
+                    splitBtn.disabled = true;
+                }
+            });
+            
+            // Form submission handler
+            form.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                if (!fileInput.files.length) {
+                    showError('Please select a PDF file.');
+                    return;
+                }
+                
+                const file = fileInput.files[0];
+                if (!file.name.toLowerCase().endsWith('.pdf')) {
+                    showError('Please select a PDF file.');
+                    return;
+                }
+                
+                // Clear previous results
+                fileList.innerHTML = '';
+                resultsSection.style.display = 'none';
+                errorMessage.style.display = 'none';
+                
+                // Show loading indicator
+                loadingIndicator.style.display = 'block';
+                statusDisplay.textContent = 'Processing...';
+                
+                // Create form data
+                const formData = new FormData();
+                formData.append('file', file);
+                
+                // Send request
+                fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    loadingIndicator.style.display = 'none';
+                    
+                    if (data.error) {
+                        showError(data.error);
+                        statusDisplay.textContent = 'Failed to split PDF.';
+                        return;
+                    }
+                    
+                    // Success
+                    statusDisplay.textContent = 'Completed successfully!';
+                    currentDirectory = data.directory;
+                    
+                    // Display results
+                    displayResults(data.files, data.directory);
+                })
+                .catch(error => {
+                    loadingIndicator.style.display = 'none';
+                    showError('An error occurred: ' + error.message);
+                    statusDisplay.textContent = 'Failed to split PDF.';
+                });
+            });
+            
+            // Display results function
+            function displayResults(files, directory) {
+                fileList.innerHTML = '';
+                
+                files.forEach(file => {
+                    const li = document.createElement('li');
+                    
+                    const fileNameSpan = document.createElement('span');
+                    fileNameSpan.textContent = file;
+                    li.appendChild(fileNameSpan);
+                    
+                    const downloadLink = document.createElement('a');
+                    downloadLink.href = `/download/${directory}/${file}`;
+                    downloadLink.className = 'download-btn';
+                    downloadLink.textContent = 'Download';
+                    downloadLink.setAttribute('download', '');
+                    li.appendChild(downloadLink);
+                    
+                    fileList.appendChild(li);
+                });
+                
+                // Show results section
+                resultsSection.style.display = 'block';
+                
+                // Update download all link
+                downloadAllBtn.style.display = files.length > 1 ? 'inline-block' : 'none';
+            }
+            
+            // Error display function
+            function showError(message) {
+                errorMessage.textContent = message;
+                errorMessage.style.display = 'block';
+            }
+            
+            // Cleanup when leaving the page
+            window.addEventListener('beforeunload', function() {
+                if (currentDirectory) {
+                    // Send cleanup request
+                    navigator.sendBeacon(`/cleanup/${currentDirectory}`);
+                }
+            });
+        });
+    </script>
+</body>
+</html>
